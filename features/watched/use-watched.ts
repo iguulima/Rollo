@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MovieSummary } from "@/lib/movies/types";
-import { LocalStorageWatchlistRepository, WATCHLIST_STORAGE_KEY } from "./local-storage-repository";
+import { LocalStorageWatchedRepository, WATCHED_STORAGE_KEY } from "./local-storage-repository";
 
-export function useWatchlist() {
-  const repository = useMemo(() => new LocalStorageWatchlistRepository(), []);
+export function useWatched() {
+  const repository = useMemo(() => new LocalStorageWatchedRepository(), []);
   const [movies, setMovies] = useState<MovieSummary[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -15,9 +15,7 @@ export function useWatchlist() {
       setReady(true);
     });
     const syncFromAnotherTab = (event: StorageEvent) => {
-      if (event.key === WATCHLIST_STORAGE_KEY) {
-        repository.list().then(setMovies);
-      }
+      if (event.key === WATCHED_STORAGE_KEY) repository.list().then(setMovies);
     };
     window.addEventListener("storage", syncFromAnotherTab);
     return () => window.removeEventListener("storage", syncFromAnotherTab);
@@ -33,10 +31,5 @@ export function useWatchlist() {
     setMovies(await repository.list());
   }, [repository]);
 
-  const reorder = useCallback(async (movieIds: number[]) => {
-    await repository.reorder(movieIds);
-    setMovies(await repository.list());
-  }, [repository]);
-
-  return { movies, ready, add, remove, reorder, has: (id: number) => movies.some((movie) => movie.id === id) };
+  return { movies, ready, add, remove, has: (id: number) => movies.some((movie) => movie.id === id) };
 }

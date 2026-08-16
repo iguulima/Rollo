@@ -1,17 +1,16 @@
 import type { MovieSummary } from "@/lib/movies/types";
-import type { WatchlistRepository } from "./repository";
+import type { WatchedRepository } from "./repository";
 
-export interface WatchlistDatabaseGateway {
+export interface WatchedDatabaseGateway {
   findAll(ownerId: string): Promise<MovieSummary[]>;
   upsert(ownerId: string, movie: MovieSummary): Promise<void>;
   delete(ownerId: string, movieId: number): Promise<void>;
-  reorder(ownerId: string, movieIds: number[]): Promise<void>;
 }
 
-export class DatabaseWatchlistRepository implements WatchlistRepository {
+export class DatabaseWatchedRepository implements WatchedRepository {
   constructor(
     private readonly ownerId: string,
-    private readonly gateway: WatchlistDatabaseGateway,
+    private readonly gateway: WatchedDatabaseGateway,
   ) {}
 
   list() {
@@ -24,9 +23,5 @@ export class DatabaseWatchlistRepository implements WatchlistRepository {
 
   remove(movieId: number) {
     return this.gateway.delete(this.ownerId, movieId);
-  }
-
-  reorder(movieIds: number[]) {
-    return this.gateway.reorder(this.ownerId, movieIds);
   }
 }

@@ -28,6 +28,15 @@ type TmdbProviders = {
   }>;
 };
 
+type TmdbVideos = {
+  results: Array<{
+    key: string;
+    site: string;
+    type: string;
+    official: boolean;
+  }>;
+};
+
 export class TmdbConfigurationError extends Error {}
 
 async function tmdbFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
@@ -70,10 +79,13 @@ export async function searchMovies(query: string): Promise<MovieSummary[]> {
 }
 
 export async function getMovieDetails(id: number): Promise<MovieDetails> {
-  const [movie, credits, availability] = await Promise.all([
+  const [movie, credits, availability, videos] = await Promise.all([
     tmdbFetch<TmdbMovie>(`/movie/${id}`),
     tmdbFetch<TmdbCredits>(`/movie/${id}/credits`),
     tmdbFetch<TmdbProviders>(`/movie/${id}/watch/providers`, {}),
+    tmdbFetch<TmdbVideos>(`/movie/${id}/videos`, {
+      include_video_language: "pt-BR,pt,en-US,en,null",
+    }),
   ]);
   const brazil = availability.results.BR;
   const providers: WatchProvider[] = (brazil?.flatrate ?? []).map((provider) => ({
@@ -81,6 +93,11 @@ export async function getMovieDetails(id: number): Promise<MovieDetails> {
     name: provider.provider_name,
     logoPath: provider.logo_path,
   }));
+  const youtubeVideos = videos.results.filter((video) => video.site === "YouTube");
+  const trailer = youtubeVideos.find((video) => video.type === "Trailer" && video.official)
+    ?? youtubeVideos.find((video) => video.type === "Trailer")
+    ?? youtubeVideos.find((video) => video.type === "Teaser")
+    ?? null;
   return {
     ...toSummary(movie),
     runtime: movie.runtime ?? null,
@@ -88,6 +105,6 @@ export async function getMovieDetails(id: number): Promise<MovieDetails> {
     director: credits.crew.find((person) => person.job === "Director")?.name ?? null,
     cast: credits.cast.sort((a, b) => a.order - b.order).slice(0, 4).map((person) => person.name),
     providers,
-    providerLink: brazil?.link ?? null,
+    trailerKey: trailer?.key ?? null,
   };
 }

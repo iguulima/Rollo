@@ -21,7 +21,7 @@ export type MovieDetails = MovieSummary & {
   director: string | null;
   cast: string[];
   providers: WatchProvider[];
-  providerLink: string | null;
+  trailerKey: string | null;
 };
 
 export const tmdbImage = (path: string | null, size: "w342" | "w500" | "w780" | "original" = "w500") =>

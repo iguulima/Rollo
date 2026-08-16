@@ -25,4 +25,16 @@ export class LocalStorageWatchlistRepository implements WatchlistRepository {
     const current = await this.list();
     window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(current.filter((movie) => movie.id !== movieId)));
   }
+
+  async reorder(movieIds: number[]): Promise<void> {
+    const current = await this.list();
+    const byId = new Map(current.map((movie) => [movie.id, movie]));
+    const reordered = movieIds.flatMap((id) => {
+      const movie = byId.get(id);
+      if (!movie) return [];
+      byId.delete(id);
+      return [movie];
+    });
+    window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify([...reordered, ...byId.values()]));
+  }
 }
