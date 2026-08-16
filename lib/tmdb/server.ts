@@ -66,7 +66,7 @@ export async function searchMovies(query: string): Promise<MovieSummary[]> {
     include_adult: "false",
     region: "BR",
   });
-  return data.results.filter((movie) => movie.poster_path).slice(0, 20).map(toSummary);
+  return data.results.slice(0, 20).map(toSummary);
 }
 
 export async function getMovieDetails(id: number): Promise<MovieDetails> {

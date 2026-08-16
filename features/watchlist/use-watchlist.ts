@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MovieSummary } from "@/lib/movies/types";
-import { LocalStorageWatchlistRepository } from "./local-storage-repository";
+import { LocalStorageWatchlistRepository, WATCHLIST_STORAGE_KEY } from "./local-storage-repository";
 
 export function useWatchlist() {
   const repository = useMemo(() => new LocalStorageWatchlistRepository(), []);
@@ -14,6 +14,13 @@ export function useWatchlist() {
       setMovies(stored);
       setReady(true);
     });
+    const syncFromAnotherTab = (event: StorageEvent) => {
+      if (event.key === WATCHLIST_STORAGE_KEY) {
+        repository.list().then(setMovies);
+      }
+    };
+    window.addEventListener("storage", syncFromAnotherTab);
+    return () => window.removeEventListener("storage", syncFromAnotherTab);
   }, [repository]);
 
   const add = useCallback(async (movie: MovieSummary) => {

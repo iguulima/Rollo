@@ -1,10 +1,12 @@
 "use client";
 
-import { Dices, Search, X } from "lucide-react";
+import { AlertCircle, Check, Dices, LoaderCircle, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MovieSummary } from "@/lib/movies/types";
+import { tmdbImage } from "@/lib/movies/types";
 import { useWatchlist } from "@/features/watchlist/use-watchlist";
 import { MovieCard } from "./movie-card";
+import { MovieImage } from "./movie-image";
 import { MovieModal } from "./movie-modal";
 import { Roulette } from "./roulette";
 
@@ -15,11 +17,14 @@ export function RolloApp() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MovieSummary[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [selected, setSelected] = useState<MovieSummary | null>(null);
   const [rouletteOpen, setRouletteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<number | null>(null);
+  const searchAreaRef = useRef<HTMLDivElement | null>(null);
 
   const showNotice = useCallback((message: string) => {
     setNotice(message);
@@ -56,10 +61,19 @@ export function RolloApp() {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, searchAttempt]);
 
-  const visibleMovies = query.trim().length >= 2 ? results : watchlist.movies;
-  const isSearch = query.trim().length >= 2;
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (searchAreaRef.current && !searchAreaRef.current.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, []);
+
+  const isSearch = query.trim().length >= 2 && searchOpen;
 
   return (
     <main className="app-shell">
@@ -74,47 +88,123 @@ export function RolloApp() {
         </button>
       </header>
 
-      <div className="search-field">
-        <Search size={20} />
-        <input
-          value={query}
-          onChange={(event) => {
-            const value = event.target.value;
-            setQuery(value);
-            if (value.trim().length < 2) {
-              setResults([]);
-              setSearching(false);
-              setSearchError(null);
-            }
-          }}
-          placeholder="Buscar filmes para adicionar..."
-          aria-label="Buscar filmes"
-        />
-        {query ? <button type="button" aria-label="Limpar busca" onClick={() => { setQuery(""); setResults([]); setSearchError(null); }}><X size={17} /></button> : <kbd>ESC</kbd>}
+      <div className="search-area" ref={searchAreaRef}>
+        <div className="search-field">
+          <Search size={20} />
+          <input
+            value={query}
+            onChange={(event) => {
+              const value = event.target.value;
+              setQuery(value);
+              setSearchOpen(value.trim().length >= 2);
+              if (value.trim().length < 2) {
+                setResults([]);
+                setSearching(false);
+                setSearchError(null);
+              }
+            }}
+            placeholder="Buscar filmes para adicionar..."
+            aria-label="Buscar filmes"
+            autoComplete="off"
+            onFocus={() => {
+              if (query.trim().length >= 2) setSearchOpen(true);
+            }}
+          />
+          {query ? <button type="button" aria-label="Limpar busca" onClick={() => { setQuery(""); setResults([]); setSearchError(null); setSearchOpen(false); }}><X size={17} /></button> : <kbd>ESC</kbd>}
+        </div>
+
+        {isSearch ? (
+          <section className="search-dropdown" aria-label="Resultados da busca">
+            <header>
+              <span>{searching ? "Buscando na TMDB" : `${results.length} resultados`}</span>
+              <small>Clique para ver detalhes</small>
+            </header>
+            {searching ? (
+              <div className="search-message"><LoaderCircle size={18} className="spin-icon" /> Buscando filmes</div>
+            ) : searchError ? (
+              <div className="search-message error">
+                <AlertCircle size={18} />
+                <span>{searchError}</span>
+                <button type="button" onClick={() => setSearchAttempt((attempt) => attempt + 1)}>Tentar novamente</button>
+              </div>
+            ) : results.length ? (
+              <div className="search-options">
+                {results.map((movie) => {
+                  const poster = tmdbImage(movie.posterPath, "w342");
+                  const alreadySaved = watchlist.has(movie.id);
+                  return (
+                    <article
+                      className="search-option"
+                      key={movie.id}
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelected(movie);
+                        setSearchOpen(false);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          setSelected(movie);
+                          setSearchOpen(false);
+                        }
+                      }}
+                    >
+                      <div className="search-add-slot">
+                        <button
+                          className={alreadySaved ? "saved" : ""}
+                          type="button"
+                          aria-label={alreadySaved ? `${movie.title} já está na watchlist` : `Adicionar ${movie.title} à watchlist`}
+                          title={alreadySaved ? "Na watchlist" : "Adicionar à watchlist"}
+                          disabled={alreadySaved}
+                          onClick={async (event) => {
+                            event.stopPropagation();
+                            if (alreadySaved) return;
+                            await watchlist.add(movie);
+                            showNotice("Adicionado à watchlist");
+                          }}
+                        >
+                          {alreadySaved ? <Check size={17} /> : <Plus size={17} />}
+                        </button>
+                      </div>
+                      <div className="search-poster">
+                        <MovieImage src={poster} alt={`Capa de ${movie.title}`} title={movie.title} sizes="48px" />
+                      </div>
+                      <div className="search-option-copy">
+                        <h3>{movie.title}</h3>
+                        {movie.originalTitle !== movie.title ? <p className="search-original">{movie.originalTitle}</p> : null}
+                        <dl>
+                          <div><dt>Ano</dt><dd>{movie.releaseYear || "—"}</dd></div>
+                          <div><dt>Nota</dt><dd>★ {movie.rating.toFixed(1)}</dd></div>
+                        </dl>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="search-message">Nenhum filme encontrado.</div>
+            )}
+          </section>
+        ) : null}
       </div>
 
       <div className="list-meta">
-        <span>{isSearch ? `${visibleMovies.length} resultados` : `${watchlist.movies.length} filmes na sua watchlist`}</span>
-        <small>{isSearch ? "Use + para adicionar" : "Todos participam do sorteio"}</small>
+        <span>{watchlist.movies.length} filmes na sua watchlist</span>
+        <small>Todos participam do sorteio</small>
       </div>
 
-      {searching ? <div className="grid-status">Buscando na TMDB...</div> : null}
-      {searchError ? <div className="grid-status error">{searchError}</div> : null}
-      {!searching && !searchError && watchlist.ready && !visibleMovies.length ? (
+      {watchlist.ready && !watchlist.movies.length ? (
         <div className="empty-state">
-          <h2>{isSearch ? "Nenhum filme encontrado" : "Sua watchlist está vazia"}</h2>
-          <p>{isSearch ? "Tente buscar por outro título." : "Use a busca acima para adicionar seu primeiro filme."}</p>
+          <h2>Sua watchlist está vazia</h2>
+          <p>Use a busca acima para adicionar seu primeiro filme.</p>
         </div>
       ) : null}
 
       <section className="movie-grid" aria-live="polite">
-        {visibleMovies.map((movie) => (
+        {watchlist.movies.map((movie) => (
           <MovieCard
             key={movie.id}
             movie={movie}
-            canAdd={isSearch && !watchlist.has(movie.id)}
             onOpen={setSelected}
-            onAdd={async (item) => { await watchlist.add(item); showNotice("Adicionado à watchlist"); }}
           />
         ))}
       </section>

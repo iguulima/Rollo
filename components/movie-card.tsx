@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { Plus } from "lucide-react";
 import type { MovieSummary } from "@/lib/movies/types";
 import { tmdbImage } from "@/lib/movies/types";
+import { MovieImage } from "./movie-image";
 
 type MovieCardProps = {
   movie: MovieSummary;
@@ -17,11 +17,7 @@ export function MovieCard({ movie, canAdd = false, onAdd, onOpen }: MovieCardPro
 
   return (
     <article className="movie-card" title={movie.title} onClick={() => onOpen(movie)}>
-      {poster ? (
-        <Image src={poster} alt={`Capa de ${movie.title}`} fill sizes="(max-width: 520px) 33vw, (max-width: 900px) 25vw, 13vw" />
-      ) : (
-        <div className="poster-placeholder">{movie.title}</div>
-      )}
+      <MovieImage src={poster} alt={`Capa de ${movie.title}`} title={movie.title} sizes="(max-width: 520px) 33vw, (max-width: 900px) 25vw, 13vw" />
       {canAdd && onAdd ? (
         <button
           className="card-add"
