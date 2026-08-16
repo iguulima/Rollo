@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Dices, RotateCcw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Dices, Eye, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { MovieSummary } from "@/lib/movies/types";
@@ -10,13 +10,15 @@ import { MovieImage } from "./movie-image";
 type RouletteProps = {
   movies: MovieSummary[];
   onClose: () => void;
+  onSelect: (movie: MovieSummary) => void;
+  onMarkWatched: (movie: MovieSummary) => void;
 };
 
 function choose<T>(items: T[]) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-export function Roulette({ movies, onClose }: RouletteProps) {
+export function Roulette({ movies, onClose, onSelect, onMarkWatched }: RouletteProps) {
   const [phase, setPhase] = useState<"spinning" | "result">("spinning");
   const [sequence, setSequence] = useState<MovieSummary[]>([movies[0]]);
   const [targetIndex, setTargetIndex] = useState(0);
@@ -39,7 +41,7 @@ export function Roulette({ movies, onClose }: RouletteProps) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const spinDuration = reducedMotion ? 420 : 2400;
     const leadCards = reducedMotion ? 2 : 6;
-    const travelCards = reducedMotion ? 4 : 20;
+    const travelCards = reducedMotion ? 4 : 34;
     const tailCards = reducedMotion ? 3 : 9;
     const winnerIndex = leadCards + travelCards;
     const sequenceLength = winnerIndex + tailCards + 1;
@@ -60,7 +62,8 @@ export function Roulette({ movies, onClose }: RouletteProps) {
     }
 
     const mobile = window.innerWidth <= 620;
-    const cardWidth = mobile ? 150 : 210;
+    const compact = !mobile && window.innerHeight <= 650;
+    const cardWidth = mobile ? 150 : compact ? 180 : 210;
     const gap = mobile ? 12 : 18;
     const centerOffset = window.innerWidth / 2 - cardWidth / 2;
     const initialOffset = centerOffset - leadCards * (cardWidth + gap);
@@ -113,44 +116,53 @@ export function Roulette({ movies, onClose }: RouletteProps) {
   return (
     <div className={`roulette ${phase}`} style={rouletteStyle}>
       <div className="roulette-background" />
-      <button className="roulette-back" type="button" onClick={onClose}>
-        <ArrowLeft size={17} /> Voltar à watchlist
-      </button>
+      <nav className="roulette-nav">
+        <button className="roulette-nav-back" type="button" aria-label="Voltar à watchlist" title="Voltar à watchlist" onClick={onClose}>
+          <ArrowLeft size={18} />
+        </button>
+        <div className="roulette-nav-title"><Dices size={15} /><strong>ROLLO</strong><span>SORTEIO</span></div>
+        <div className="roulette-nav-count"><strong>{movies.length}</strong><span>títulos</span></div>
+      </nav>
 
-      <header className="roulette-header">
-        <span><Dices size={15} /> SORTEIO</span>
-        <p>{phase === "spinning" ? `${movies.length} filmes participando` : "O acaso escolheu"}</p>
-      </header>
+      <main className="roulette-stage">
+        <header className="roulette-header">
+          <p>{phase === "spinning" ? "SORTEIO EM ANDAMENTO" : "ESCOLHA DEFINIDA"}</p>
+          <h1>{phase === "spinning" ? "O que vamos assistir?" : winner.title}</h1>
+          <div className="roulette-winner-meta" aria-hidden={phase !== "result"}>
+            <span>{winner.releaseYear || "Ano não informado"}</span><i /><strong>★ {winner.rating.toFixed(1)}</strong>
+          </div>
+        </header>
 
-      <section className="roulette-reel-window" aria-live="polite">
-        <div className="roulette-track" style={trackStyle}>
-          {sequence.map((movie, index) => {
-            const poster = tmdbImage(movie.posterPath, "w500");
-            const isWinner = index === targetIndex;
-            return (
-              <div className={`reel-card ${isWinner ? "winner-card" : ""}`} key={`${movie.id}-${index}`}>
-                <MovieImage src={poster} alt={`Capa de ${movie.title}`} title={movie.title} sizes="210px" />
-              </div>
-            );
-          })}
+        <section className="roulette-reel-window" aria-live="polite">
+          <div className="roulette-rail roulette-rail-top" aria-hidden="true" />
+          <div className="roulette-track" style={trackStyle}>
+            {sequence.map((movie, index) => {
+              const poster = tmdbImage(movie.posterPath, "w500");
+              const isWinner = index === targetIndex;
+              return (
+                <div className={`reel-card ${isWinner ? "winner-card" : ""}`} key={`${movie.id}-${index}`}>
+                  <MovieImage src={poster} alt={`Capa de ${movie.title}`} title={movie.title} sizes="180px" />
+                  <span className="reel-card-title">{movie.title}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="roulette-focus" aria-hidden="true"><i /><i /></div>
+          <div className="roulette-rail roulette-rail-bottom" aria-hidden="true" />
+        </section>
+
+        <div className={phase === "result" ? "roulette-actions visible" : "roulette-actions"} aria-hidden={phase !== "result"}>
+          <button className="roulette-secondary-action" type="button" onClick={start} tabIndex={phase === "result" ? 0 : -1}>
+            <RotateCcw size={16} /> Rodar de novo
+          </button>
+          <button className="roulette-watched-action" type="button" onClick={() => onMarkWatched(winner)} tabIndex={phase === "result" ? 0 : -1}>
+            <CheckCircle2 size={16} /> Marcar assistido
+          </button>
+          <button className="primary-button" type="button" onClick={() => onSelect(winner)} tabIndex={phase === "result" ? 0 : -1}>
+            <Eye size={17} /> Ver detalhes
+          </button>
         </div>
-        <div className="roulette-focus" aria-hidden="true"><i /><i /></div>
-        {phase === "spinning" ? <div className="roulette-progress" style={{ animationDuration: `${duration}ms` }} /> : null}
-      </section>
-
-      {phase === "result" ? (
-        <div className="roulette-result-copy">
-          <h1>{winner.title}</h1>
-          <span>{winner.releaseYear} · ★ {winner.rating.toFixed(1)}</span>
-        </div>
-      ) : <div className="roulette-result-placeholder" aria-hidden="true" />}
-
-      {phase === "result" ? (
-        <div className="roulette-actions">
-          <button className="primary-button" type="button" onClick={start}><RotateCcw size={17} /> Sortear novamente</button>
-          <a href={`https://letterboxd.com/tmdb/${winner.id}`} target="_blank" rel="noreferrer">Abrir no Letterboxd</a>
-        </div>
-      ) : null}
+      </main>
     </div>
   );
 }

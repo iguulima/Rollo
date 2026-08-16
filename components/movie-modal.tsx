@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlertCircle, LoaderCircle, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, Play, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { MovieDetails, MovieSummary } from "@/lib/movies/types";
 import { tmdbImage } from "@/lib/movies/types";
@@ -26,9 +26,9 @@ export function MovieModal({ movie, inWatchlist, onClose, onAdd, onRemove }: Mov
   const [details, setDetails] = useState<MovieDetails | null>(null);
   const [failed, setFailed] = useState(false);
   const [detailsAttempt, setDetailsAttempt] = useState(0);
+  const [trailerOpen, setTrailerOpen] = useState(false);
 
   useEffect(() => {
-    document.body.classList.add("modal-open");
     const controller = new AbortController();
     fetch(`/api/tmdb/movies/${movie.id}`, { signal: controller.signal })
       .then((response) => {
@@ -40,16 +40,23 @@ export function MovieModal({ movie, inWatchlist, onClose, onAdd, onRemove }: Mov
         if (error.name !== "AbortError") setFailed(true);
       });
 
+    return () => controller.abort();
+  }, [detailsAttempt, movie.id]);
+
+  useEffect(() => {
+    document.body.classList.add("modal-open");
+    return () => document.body.classList.remove("modal-open");
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (trailerOpen) setTrailerOpen(false);
+      else onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => {
-      controller.abort();
-      document.body.classList.remove("modal-open");
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [detailsAttempt, movie.id, onClose]);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, trailerOpen]);
 
   const poster = tmdbImage(movie.posterPath, "w500");
   const backdrop = tmdbImage(details?.backdropPath ?? movie.backdropPath, "original");
@@ -111,13 +118,16 @@ export function MovieModal({ movie, inWatchlist, onClose, onAdd, onRemove }: Mov
             </div>
 
             <div className="movie-dialog-providers">
-              <div className="movie-dialog-providers-heading"><h3>Onde assistir</h3><small>Brasil</small></div>
+              <div className="movie-dialog-providers-heading">
+                <h3>Onde assistir</h3>
+                <small>Brasil</small>
+              </div>
               {details?.providers.length ? (
                 <>
                   <div className="movie-dialog-provider-list">
                     {details.providers.map((provider) => (
-                      <figure key={provider.id} tabIndex={0}>
-                        {provider.logoPath ? <Image src={tmdbImage(provider.logoPath, "w342")!} alt={provider.name} width={38} height={38} /> : null}
+                      <figure key={provider.id} tabIndex={0} aria-label={provider.name}>
+                        {provider.logoPath ? <Image src={tmdbImage(provider.logoPath, "w342")!} alt="" width={38} height={38} /> : null}
                         <figcaption>{provider.name}</figcaption>
                       </figure>
                     ))}
@@ -129,6 +139,11 @@ export function MovieModal({ movie, inWatchlist, onClose, onAdd, onRemove }: Mov
           </section>
 
           <div className="movie-dialog-actions">
+            {details?.trailerKey ? (
+              <button className="trailer-button" type="button" onClick={() => setTrailerOpen(true)}>
+                <Play size={15} fill="currentColor" /> Assistir trailer
+              </button>
+            ) : null}
             <a href={`https://letterboxd.com/tmdb/${movie.id}`} target="_blank" rel="noreferrer" className="letterboxd-link">
               <Image className="letterboxd-official-icon" src="/letterboxd-dots.svg" alt="" width={20} height={20} />
               Ver no Letterboxd
@@ -144,6 +159,20 @@ export function MovieModal({ movie, inWatchlist, onClose, onAdd, onRemove }: Mov
             )}
           </div>
         </div>
+
+        {trailerOpen && details?.trailerKey ? (
+          <div className="trailer-layer" role="dialog" aria-modal="true" aria-label={`Trailer de ${movie.title}`}>
+            <button className="trailer-layer-scrim" type="button" aria-label="Fechar trailer" onClick={() => setTrailerOpen(false)} />
+            <div className="trailer-player">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${details.trailerKey}?autoplay=1&rel=0&playsinline=1&vq=hd720`}
+                title={`Trailer de ${movie.title}`}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );
