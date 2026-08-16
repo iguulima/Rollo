@@ -216,6 +216,7 @@ export function RolloApp() {
           movie={selected}
           inWatchlist={watchlist.has(selected.id)}
           onClose={() => setSelected(null)}
+          onAdd={async (movie) => { await watchlist.add(movie); showNotice("Adicionado à watchlist"); }}
           onRemove={async (id) => { await watchlist.remove(id); showNotice("Removido da watchlist"); }}
         />
       ) : null}
